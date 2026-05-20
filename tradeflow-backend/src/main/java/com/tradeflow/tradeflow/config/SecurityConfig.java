@@ -24,6 +24,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/stocks/**").permitAll()
                         .anyRequest().permitAll()        
                 )
                 .httpBasic(Customizer.withDefaults());
