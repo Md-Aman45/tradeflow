@@ -1,0 +1,19 @@
+# spring:
+#   application:
+#     name: tradeflow
+
+
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/tradeflow
+    username: postgres
+    password: Aman@123#45PQ
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+server:
+  port: 8080
