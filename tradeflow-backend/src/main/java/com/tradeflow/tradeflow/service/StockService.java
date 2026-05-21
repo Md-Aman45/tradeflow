@@ -7,6 +7,8 @@ import com.tradeflow.tradeflow.repository.StockRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class StockService {
@@ -26,5 +28,50 @@ public class StockService {
         stockRepository.save(stock);
 
         return "Stock created successfully";
+    }
+
+
+
+
+    public List<Stock> getAllStocks() {
+        return stockRepository.findAll();
+    }
+
+
+
+    public Stock getStockById(Long id) {
+        return stockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Stock not found"));
+    }
+
+
+
+
+
+    public Stock updateStock(Long id, CreateStockRequest request) {
+
+        Stock stock = stockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Stock not found"));
+
+        stock.setSymbol(request.getSymbol());
+        stock.setCompanyName(request.getCompanyName());
+        stock.setPrice(request.getPrice());
+        stock.setChangePercent(request.getChangePercent());
+        stock.setMarketStatus(request.getMarketStatus());
+
+        return stockRepository.save(stock);
+    }
+
+
+
+
+    public String deleteStock(Long id) {
+
+        Stock stock = stockRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Stock not found"));
+
+        stockRepository.delete(stock);
+
+        return "Stock deleted successfully";
     }
 }
