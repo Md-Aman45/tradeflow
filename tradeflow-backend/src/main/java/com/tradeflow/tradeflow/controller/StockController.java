@@ -52,3 +52,8 @@ public class StockController {
         return stockService.deleteStock(id);
     }
 }
+
+
+
+
+
