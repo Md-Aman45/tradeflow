@@ -1,10 +1,14 @@
 package com.tradeflow.tradeflow.service;
 
 
+import com.tradeflow.tradeflow.config.JwtService;
+import com.tradeflow.tradeflow.dto.auth.AuthResponse;
 import com.tradeflow.tradeflow.dto.auth.LoginRequest;
 import com.tradeflow.tradeflow.dto.auth.RegisterRequest;
 import com.tradeflow.tradeflow.entity.User;
 import com.tradeflow.tradeflow.entity.Wallet;
+import com.tradeflow.tradeflow.exception.BadRequestException;
+import com.tradeflow.tradeflow.exception.UserAlreadyExistsException;
 import com.tradeflow.tradeflow.repository.UserRepository;
 import com.tradeflow.tradeflow.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,15 +20,16 @@ import java.math.BigDecimal;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-    
+
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public String register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request) {
 
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already exists");
+            throw new UserAlreadyExistsException(request.getEmail());
         }
 
         User user = User.builder()
@@ -39,28 +44,32 @@ public class AuthService {
                 .user(user)
                 .balance(new BigDecimal("100000"))
                 .build();
-        
+
         walletRepository.save(wallet);
 
-        return "User registered successfully";
+        // Generate token immediately after register
+        String token = jwtService.generateToken(user.getEmail());
+
+        return new AuthResponse(token, "User registered successfully", user.getEmail(), user.getRole());
     }
 
-
-
-    public String login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request) {
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+                .orElseThrow(() -> new BadRequestException("Invalid credentials"));
 
         boolean matches = passwordEncoder.matches(
-            request.getPassword(),
-            user.getPassword()
+                request.getPassword(),
+                user.getPassword()
         );
 
         if (!matches) {
-            throw new RuntimeException("Invalid credentials");
+            throw new BadRequestException("Invalid credentials");
         }
 
-        return "Login successful";
+        // Generate token on successful login
+        String token = jwtService.generateToken(user.getEmail());
+
+        return new AuthResponse(token, "Login successful", user.getEmail(), user.getRole());
     }
 }

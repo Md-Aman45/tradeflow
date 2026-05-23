@@ -1,9 +1,3 @@
-# spring:
-#   application:
-#     name: tradeflow
-
-
-
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/tradeflow
@@ -17,3 +11,7 @@ spring:
 
 server:
   port: 8080
+
+jwt:
+  secret: 3f8d2a1b9c7e4f6a0d5b8e2c1a4f7d9b3e6c0a5f8d2b1e4c7a0f3d6b9e2c5a8
+  expiration: 86400000
