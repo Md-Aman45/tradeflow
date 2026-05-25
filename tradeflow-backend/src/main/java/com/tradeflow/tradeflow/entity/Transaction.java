@@ -3,6 +3,8 @@ package com.tradeflow.tradeflow.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+
+// do this
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -52,6 +54,11 @@ public class Transaction {
         BUY, SELL, DEPOSIT, WITHDRAW
     }
 }
+
+
+
+
+
 
 
 
