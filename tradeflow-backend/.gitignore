@@ -5,7 +5,18 @@ target/
 !**/src/test/**/target/
 
 
+
+
+*.class
 .env
+application-local.yaml
+
+
+
+### OS
+.DS_Store
+Thumbs.db
+
 
 ### STS ###
 .apt_generated
@@ -17,7 +28,7 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/
 *.iws
 *.iml
 *.ipr

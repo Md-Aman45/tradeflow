@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+
+  # ── PostgreSQL Database ──────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: tradeflow-db
+    environment:
+      POSTGRES_DB: tradeflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Aman@123#45PQ
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tradeflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Spring Boot App ──────────────────────────────────────────
+  app:
+    build: .
+    container_name: tradeflow-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/tradeflow
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: Aman@123#45PQ
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: 3f8d2a1b9c7e4f6a0d5b8e2c1a4f7d9b3e6c0a5f8d2b1e4c7a0f3d6b9e2c5a8
+      JWT_EXPIRATION: 86400000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tradeflow-network
+    restart: on-failure
+
+networks:
+  tradeflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

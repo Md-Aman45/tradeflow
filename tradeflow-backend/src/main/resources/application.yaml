@@ -1,17 +1,39 @@
+# spring:
+#   datasource:
+#     url: jdbc:postgresql://localhost:5432/tradeflow
+#     username: postgres
+#     password: Aman@123#45PQ
+
+#   jpa:
+#     hibernate:
+#       ddl-auto: update
+#     show-sql: true
+
+# server:
+#   port: 8080
+
+# jwt:
+#   secret: 3f8d2a1b9c7e4f6a0d5b8e2c1a4f7d9b3e6c0a5f8d2b1e4c7a0f3d6b9e2c5a8
+#   expiration: 86400000
+
+
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/tradeflow
-    username: postgres
-    password: Aman@123#45PQ
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tradeflow}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:Aman@123#45PQ}
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
 server:
   port: 8080
 
 jwt:
-  secret: 3f8d2a1b9c7e4f6a0d5b8e2c1a4f7d9b3e6c0a5f8d2b1e4c7a0f3d6b9e2c5a8
-  expiration: 86400000
+  secret: ${JWT_SECRET:3f8d2a1b9c7e4f6a0d5b8e2c1a4f7d9b3e6c0a5f8d2b1e4c7a0f3d6b9e2c5a8}
+  expiration: ${JWT_EXPIRATION:86400000}
