@@ -14,7 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @RequiredArgsConstructor
-@EnableMethodSecurity // enables @PreAuthorize in AdminController
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
@@ -34,13 +34,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public routes
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Swagger routes - public
+                        // Swagger routes
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/v3/api-docs"
                         ).permitAll()
+                        // WebSocket routes
+                        .requestMatchers("/ws/**").permitAll()
                         // Admin routes
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Everything else needs token
