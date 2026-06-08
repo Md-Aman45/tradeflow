@@ -41,7 +41,7 @@ public class JwtFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7); // Remove "Bearer " prefix
         String email = jwtService.extractEmail(token);
 
-        // If email extracted and user not already authenticated
+        // If email extracted and user not already authenticated...
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
             var userOpt = userRepository.findByEmail(email);
