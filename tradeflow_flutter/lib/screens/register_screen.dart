@@ -25,33 +25,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _errorMessage = 'Please fill all fields');
       return;
     }
-
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
       final result = await _authService.register(
         _nameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
-
       if (result['statusCode'] == 201) {
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()));
         }
       } else {
-        setState(() {
-          _errorMessage = result['data']['message'] ?? 'Registration failed';
-        });
+        setState(() =>
+            _errorMessage = result['data']['message'] ?? 'Registration failed');
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Connection error. Is the server running?');
+      setState(() => _errorMessage = 'Connection error');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -59,166 +53,161 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final subColor = isDark ? const Color(0xFF888888) : const Color(0xFF999999);
+    final cardColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2C2C2C) : const Color(0xFFE0E0E0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 40),
-
-              // Back button
+              const SizedBox(height: 24),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
-
-              const SizedBox(height: 32),
-
-              const Text(
-                'Create Account',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Icon(Icons.arrow_back,
+                      color: textColor, size: 20),
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Start trading today',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
+              const SizedBox(height: 32),
+              Text('Create Account',
+                  style: TextStyle(
+                      color: textColor,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5)),
+              const SizedBox(height: 6),
+              Text('Start your trading journey today',
+                  style: TextStyle(color: subColor, fontSize: 14)),
+              const SizedBox(height: 36),
 
-              const SizedBox(height: 40),
-
-              // Error message
-              if (_errorMessage != null)
+              if (_errorMessage != null) ...[
                 Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    color: const Color(0xFFE53935).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFFE53935).withOpacity(0.25)),
                   ),
                   child: Text(_errorMessage!,
-                      style: const TextStyle(color: Colors.red)),
+                      style: const TextStyle(
+                          color: Color(0xFFE53935), fontSize: 13)),
                 ),
+                const SizedBox(height: 20),
+              ],
 
-              // Name field
-              _buildLabel('Full Name'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _nameController,
-                hint: 'Enter your full name',
-                icon: Icons.person_outline,
-              ),
+              _buildField('Full Name', _nameController,
+                  Icons.person_outline, 'Enter your full name',
+                  isDark: isDark, textColor: textColor,
+                  subColor: subColor, cardColor: cardColor,
+                  borderColor: borderColor),
+              const SizedBox(height: 16),
+              _buildField('Email', _emailController,
+                  Icons.email_outlined, 'Enter your email',
+                  isDark: isDark, textColor: textColor,
+                  subColor: subColor, cardColor: cardColor,
+                  borderColor: borderColor,
+                  keyboardType: TextInputType.emailAddress),
+              const SizedBox(height: 16),
+              _buildField('Password', _passwordController,
+                  Icons.lock_outline, 'Min 6 characters',
+                  isDark: isDark, textColor: textColor,
+                  subColor: subColor, cardColor: cardColor,
+                  borderColor: borderColor,
+                  obscure: _obscurePassword,
+                  onToggleObscure: () => setState(
+                      () => _obscurePassword = !_obscurePassword)),
+              const SizedBox(height: 16),
 
-              const SizedBox(height: 20),
-
-              // Email field
-              _buildLabel('Email'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _emailController,
-                hint: 'Enter your email',
-                icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
-
-              const SizedBox(height: 20),
-
-              // Password field
-              _buildLabel('Password'),
-              const SizedBox(height: 8),
-              _buildTextField(
-                controller: _passwordController,
-                hint: 'Min 6 characters',
-                icon: Icons.lock_outline,
-                obscureText: _obscurePassword,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    color: Colors.grey,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Wallet info
+              // Bonus info
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00C896).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFF1DB954).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFF00C896).withOpacity(0.3)),
+                      color: const Color(0xFF1DB954).withOpacity(0.2)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.account_balance_wallet,
-                        color: Color(0xFF00C896), size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      '₹1,00,000 virtual money added on signup!',
-                      style:
-                          TextStyle(color: Color(0xFF00C896), fontSize: 13),
+                    const Icon(Icons.account_balance_wallet_outlined,
+                        color: Color(0xFF1DB954), size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Virtual Wallet Bonus',
+                              style: TextStyle(
+                                  color: Color(0xFF1DB954),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                          Text('₹1,00,000 added on signup',
+                              style: TextStyle(
+                                  color: subColor, fontSize: 12)),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Register button
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _register,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C896),
-                    foregroundColor: Colors.black,
+                    backgroundColor: const Color(0xFF1DB954),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.black)
-                      : const Text(
-                          'Create Account',
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2.5))
+                      : const Text('Create Account',
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
+                              fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
               ),
-
-              const SizedBox(height: 24),
-
+              const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Already have an account? ',
-                      style: TextStyle(color: Colors.grey)),
+                  Text('Already have an account? ',
+                      style: TextStyle(color: subColor, fontSize: 14)),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
-                    child: const Text(
-                      'Sign In',
-                      style: TextStyle(
-                        color: Color(0xFF00C896),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: const Text('Login',
+                        style: TextStyle(
+                            color: Color(0xFF1DB954),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14)),
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -226,44 +215,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-    Widget? suffixIcon,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.grey),
-        prefixIcon: Icon(icon, color: Colors.grey),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: const Color(0xFF1A1A1A),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+  Widget _buildField(String label, TextEditingController controller,
+      IconData icon, String hint,
+      {required bool isDark,
+      required Color textColor,
+      required Color subColor,
+      required Color cardColor,
+      required Color borderColor,
+      TextInputType? keyboardType,
+      bool obscure = false,
+      VoidCallback? onToggleObscure}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                color: textColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: TextField(
+            controller: controller,
+            obscureText: obscure,
+            keyboardType: keyboardType,
+            style: TextStyle(color: textColor, fontSize: 15),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: subColor, fontSize: 14),
+              prefixIcon: Icon(icon, color: subColor, size: 20),
+              suffixIcon: onToggleObscure != null
+                  ? IconButton(
+                      icon: Icon(
+                          obscure
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: subColor,
+                          size: 20),
+                      onPressed: onToggleObscure)
+                  : null,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 16),
+            ),
+          ),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide:
-              const BorderSide(color: Color(0xFF00C896), width: 1.5),
-        ),
-      ),
+      ],
     );
   }
 

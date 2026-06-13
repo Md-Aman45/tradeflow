@@ -14,8 +14,9 @@ class MarketScreen extends StatefulWidget {
 
 class _MarketScreenState extends State<MarketScreen> {
   List<dynamic> _stocks = [];
+  List<dynamic> _filtered = [];
   bool _isLoading = true;
-  String? _error;
+  String _search = '';
 
   @override
   void initState() {
@@ -24,229 +25,383 @@ class _MarketScreenState extends State<MarketScreen> {
   }
 
   Future<void> _loadStocks() async {
+    setState(() => _isLoading = true);
     try {
       final token = await AuthService().getToken();
-      final response = await http.get(
-        Uri.parse(Constants.stocks),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
+      final res = await http.get(Uri.parse(Constants.stocks),
+          headers: {'Authorization': 'Bearer $token'});
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as List;
         setState(() {
-          _stocks = jsonDecode(response.body);
+          _stocks = data;
+          _filtered = data;
           _isLoading = false;
         });
       } else {
-        setState(() {
-          _error = 'Failed to load stocks';
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
-    } catch (e) {
-      setState(() {
-        _error = 'Connection error';
-        _isLoading = false;
-      });
+    } catch (_) {
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _buyStock(Map<String, dynamic> stock) async {
-    final qtyController = TextEditingController(text: '1');
+  void _onSearch(String query) {
+    setState(() {
+      _search = query;
+      _filtered = _stocks
+          .where((s) =>
+              s['symbol'].toString().toUpperCase().contains(query.toUpperCase()) ||
+              s['companyName'].toString().toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    });
+  }
+
+  Future<void> _showBuySheet(Map<String, dynamic> stock) async {
+    final qtyCtrl = TextEditingController(text: '1');
     final token = await AuthService().getToken();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          left: 24, right: 24, top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final qty = int.tryParse(qtyCtrl.text) ?? 1;
+          final total = (stock['price'] as num) * qty;
+          return Padding(
+            padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Buy ${stock['symbol']}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF333333)
+                          : const Color(0xFFE0E0E0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                Text(
-                  '₹${stock['price']}',
-                  style: const TextStyle(
-                    color: Color(0xFF00C896),
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(stock['symbol'],
+                            style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold)),
+                        Text(stock['companyName'],
+                            style: const TextStyle(
+                                color: Color(0xFF888888), fontSize: 13)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('₹${stock['price']}',
+                            style: const TextStyle(
+                                color: Color(0xFF1DB954),
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold)),
+                        Text(
+                          '${(stock['changePercent'] ?? 0) >= 0 ? '+' : ''}${stock['changePercent']?.toStringAsFixed(2) ?? '0.00'}%',
+                          style: TextStyle(
+                            color: (stock['changePercent'] ?? 0) >= 0
+                                ? const Color(0xFF1DB954)
+                                : const Color(0xFFE53935),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Divider(
+                    color: isDark
+                        ? const Color(0xFF2C2C2C)
+                        : const Color(0xFFE0E0E0)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Quantity',
+                              style: TextStyle(
+                                  color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _qtyButton(Icons.remove, () {
+                                if (qty > 1) {
+                                  qtyCtrl.text = (qty - 1).toString();
+                                  setS(() {});
+                                }
+                              }, isDark),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 60,
+                                child: TextField(
+                                  controller: qtyCtrl,
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  onChanged: (_) => setS(() {}),
+                                  style: TextStyle(
+                                      color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: isDark
+                                        ? const Color(0xFF222222)
+                                        : const Color(0xFFF5F5F5),
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide.none),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        vertical: 10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              _qtyButton(Icons.add, () {
+                                qtyCtrl.text = (qty + 1).toString();
+                                setS(() {});
+                              }, isDark),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Total Amount',
+                            style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 8),
+                        Text('₹${total.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                color: Color(0xFF1DB954),
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final res = await http.post(
+                        Uri.parse(Constants.buyStock),
+                        headers: {
+                          'Authorization': 'Bearer $token',
+                          'Content-Type': 'application/json',
+                        },
+                        body: jsonEncode({
+                          'stockId': stock['id'],
+                          'quantity': qty,
+                        }),
+                      );
+                      if (mounted) {
+                        final ok = res.statusCode == 200;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(ok
+                                ? '✅ Bought $qty shares of ${stock['symbol']}'
+                                : '❌ ${jsonDecode(res.body)['message'] ?? 'Failed'}'),
+                            backgroundColor:
+                                ok ? const Color(0xFF1DB954) : const Color(0xFFE53935),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1DB954),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Buy ${stock['symbol']}',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              stock['companyName'],
-              style: const TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-            const SizedBox(height: 24),
-            const Text('Quantity',
-                style: TextStyle(color: Colors.white, fontSize: 14)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: qtyController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: const Color(0xFF1F1F1F),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Color(0xFF00C896), width: 1.5),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  final response = await http.post(
-                    Uri.parse(Constants.buyStock),
-                    headers: {
-                      'Authorization': 'Bearer $token',
-                      'Content-Type': 'application/json',
-                    },
-                    body: jsonEncode({
-                      'stockId': stock['id'],
-                      'quantity': int.parse(qtyController.text),
-                    }),
-                  );
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(response.statusCode == 200
-                            ? '✅ ${stock['symbol']} bought successfully!'
-                            : '❌ ${jsonDecode(response.body)['message']}'),
-                        backgroundColor: response.statusCode == 200
-                            ? const Color(0xFF00C896)
-                            : Colors.red,
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00C896),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Buy Now',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _qtyButton(IconData icon, VoidCallback onTap, bool isDark) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF222222) : const Color(0xFFF0F0F0),
+          borderRadius: BorderRadius.circular(8),
         ),
+        child: Icon(icon,
+            color: isDark ? Colors.white : const Color(0xFF1A1A1A), size: 18),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
+    final subColor = isDark ? const Color(0xFF888888) : const Color(0xFF999999);
+    final cardColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF2C2C2C) : const Color(0xFFE8E8E8);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Market',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold)),
-                      Text('${_stocks.length} stocks available',
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 13)),
-                    ],
-                  ),
+                  Text('Market',
+                      style: TextStyle(
+                          color: textColor,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold)),
                   IconButton(
                     onPressed: _loadStocks,
-                    icon: const Icon(Icons.refresh, color: Colors.grey),
+                    icon: Icon(Icons.refresh_rounded, color: subColor),
                   ),
                 ],
               ),
             ),
 
-            // Stocks list
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: TextField(
+                  onChanged: _onSearch,
+                  style: TextStyle(color: textColor, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Search stocks...',
+                    hintStyle: TextStyle(color: subColor, fontSize: 14),
+                    prefixIcon:
+                        Icon(Icons.search, color: subColor, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Stats row
+            if (!_isLoading && _stocks.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    Text('${_filtered.length} stocks',
+                        style: TextStyle(color: subColor, fontSize: 12)),
+                    const SizedBox(width: 16),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF1DB954),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text('Live',
+                        style: TextStyle(
+                            color: Color(0xFF1DB954), fontSize: 12)),
+                  ],
+                ),
+              ),
+
+            // List
             Expanded(
               child: _isLoading
-                  ? _buildShimmer()
-                  : _error != null
+                  ? _buildShimmer(isDark)
+                  : _filtered.isEmpty
                       ? Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Colors.red, size: 48),
-                              const SizedBox(height: 16),
-                              Text(_error!,
-                                  style: const TextStyle(color: Colors.grey)),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _loadStocks,
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        const Color(0xFF00C896)),
-                                child: const Text('Retry',
-                                    style:
-                                        TextStyle(color: Colors.black)),
+                              Icon(Icons.search_off,
+                                  color: subColor, size: 48),
+                              const SizedBox(height: 12),
+                              Text(
+                                _search.isNotEmpty
+                                    ? 'No results for "$_search"'
+                                    : 'No stocks available',
+                                style: TextStyle(
+                                    color: subColor, fontSize: 14),
                               ),
                             ],
                           ),
                         )
-                      : _stocks.isEmpty
-                          ? const Center(
-                              child: Text('No stocks available',
-                                  style: TextStyle(color: Colors.grey)))
-                          : RefreshIndicator(
-                              onRefresh: _loadStocks,
-                              color: const Color(0xFF00C896),
-                              child: ListView.builder(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20),
-                                itemCount: _stocks.length,
-                                itemBuilder: (context, index) {
-                                  return _buildStockCard(_stocks[index]);
-                                },
-                              ),
-                            ),
+                      : RefreshIndicator(
+                          onRefresh: _loadStocks,
+                          color: const Color(0xFF1DB954),
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                            itemCount: _filtered.length,
+                            separatorBuilder: (_, __) => Divider(
+                                color: borderColor,
+                                height: 1,
+                                indent: 60),
+                            itemBuilder: (_, i) =>
+                                _buildStockTile(_filtered[i], isDark,
+                                    textColor, subColor),
+                          ),
+                        ),
             ),
           ],
         ),
@@ -254,98 +409,84 @@ class _MarketScreenState extends State<MarketScreen> {
     );
   }
 
-  Widget _buildStockCard(Map<String, dynamic> stock) {
-    final change = stock['changePercent'] ?? 0.0;
-    final isPositive = change >= 0;
+  Widget _buildStockTile(Map<String, dynamic> stock, bool isDark,
+      Color textColor, Color subColor) {
+    final change = (stock['changePercent'] ?? 0.0) as num;
+    final isPos = change >= 0;
     final changeColor =
-        isPositive ? const Color(0xFF00C896) : const Color(0xFFFF4444);
+        isPos ? const Color(0xFF1DB954) : const Color(0xFFE53935);
 
-    return GestureDetector(
-      onTap: () => _buyStock(stock),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161616),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-        ),
+    return InkWell(
+      onTap: () => _showBuySheet(stock),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            // Stock icon
+            // Icon
             Container(
-              width: 46,
-              height: 46,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: changeColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
                 child: Text(
-                  stock['symbol'].substring(0, 1),
+                  stock['symbol'].toString().substring(0, 1),
                   style: TextStyle(
-                    color: changeColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      color: changeColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-
             const SizedBox(width: 14),
 
-            // Stock info
+            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    stock['symbol'],
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text(stock['symbol'],
+                      style: TextStyle(
+                          color: textColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(
-                    stock['companyName'],
-                    style: const TextStyle(
-                        color: Colors.grey, fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(stock['companyName'],
+                      style: TextStyle(color: subColor, fontSize: 12),
+                      overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
 
-            // Price info
+            // Price
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '₹${stock['price']}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: changeColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${isPositive ? '+' : ''}${change.toStringAsFixed(2)}%',
+                Text('₹${stock['price']}',
                     style: TextStyle(
-                      color: changeColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(
+                        isPos
+                            ? Icons.arrow_drop_up
+                            : Icons.arrow_drop_down,
+                        color: changeColor,
+                        size: 16),
+                    Text(
+                      '${change.abs().toStringAsFixed(2)}%',
+                      style: TextStyle(
+                          color: changeColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -355,24 +496,68 @@ class _MarketScreenState extends State<MarketScreen> {
     );
   }
 
-  Widget _buildShimmer() {
+  Widget _buildShimmer(bool isDark) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        return Shimmer.fromColors(
-          baseColor: const Color(0xFF161616),
-          highlightColor: const Color(0xFF222222),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            height: 78,
-            decoration: BoxDecoration(
-              color: const Color(0xFF161616),
-              borderRadius: BorderRadius.circular(16),
-            ),
+      itemCount: 8,
+      itemBuilder: (_, __) => Shimmer.fromColors(
+        baseColor:
+            isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+        highlightColor:
+            isDark ? const Color(0xFF252525) : const Color(0xFFF5F5F5),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10))),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                        height: 14,
+                        width: 80,
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4))),
+                    const SizedBox(height: 6),
+                    Container(
+                        height: 11,
+                        width: 140,
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4))),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                      height: 14,
+                      width: 60,
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4))),
+                  const SizedBox(height: 6),
+                  Container(
+                      height: 11,
+                      width: 40,
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4))),
+                ],
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
