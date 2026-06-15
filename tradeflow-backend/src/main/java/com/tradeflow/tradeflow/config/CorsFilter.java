@@ -24,8 +24,7 @@ public class CorsFilter extends OncePerRequestFilter {
 
         String origin = request.getHeader("Origin");
 
-        // Echo the actual origin back instead of wildcard *
-        // This is required when credentials are involved
+        
         if (origin != null) {
             response.setHeader("Access-Control-Allow-Origin", origin);
         } else {
