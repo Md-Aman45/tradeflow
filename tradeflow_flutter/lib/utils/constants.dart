@@ -1,5 +1,4 @@
 class Constants {
-  // ── Change this to your Railway URL after deployment ──────────
   static const String baseUrl = 'http://localhost:8080';
 
   // Auth
@@ -24,6 +23,6 @@ class Constants {
   static const String adminUsers = '$baseUrl/api/admin/users';
   static const String adminStocks = '$baseUrl/api/admin/stocks';
 
-  // WebSocket
-  static const String wsUrl = 'ws://localhost:8080/ws/websocket';
+  // WebSocket — SockJS endpoint
+  static const String wsUrl = 'http://localhost:8080/ws';
 }

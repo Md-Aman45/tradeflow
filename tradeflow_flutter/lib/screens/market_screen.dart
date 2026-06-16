@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
+import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../utils/constants.dart';
 import '../services/auth_service.dart';
 
@@ -16,12 +17,72 @@ class _MarketScreenState extends State<MarketScreen> {
   List<dynamic> _stocks = [];
   List<dynamic> _filtered = [];
   bool _isLoading = true;
+  bool _wsConnected = false;
   String _search = '';
+  StompClient? _stompClient;
 
   @override
   void initState() {
     super.initState();
     _loadStocks();
+    _connectWebSocket();
+  }
+
+  @override
+  void dispose() {
+    _stompClient?.deactivate();
+    super.dispose();
+  }
+
+  void _connectWebSocket() {
+    _stompClient = StompClient(
+      config: StompConfig(
+        url: Constants.wsUrl,
+        onConnect: (frame) {
+          setState(() => _wsConnected = true);
+
+          // Subscribe to all stock updates
+          _stompClient!.subscribe(
+            destination: '/topic/stocks',
+            callback: (frame) {
+              if (frame.body != null) {
+                final update = jsonDecode(frame.body!);
+                _updateStock(update);
+              }
+            },
+          );
+
+          // Request current prices
+          _stompClient!.send(destination: '/app/subscribe-stocks');
+        },
+        onDisconnect: (_) => setState(() => _wsConnected = false),
+        onWebSocketError: (_) => setState(() => _wsConnected = false),
+        reconnectDelay: const Duration(seconds: 5),
+      ),
+    );
+    _stompClient!.activate();
+  }
+
+  void _updateStock(dynamic update) {
+    setState(() {
+      final index = _stocks.indexWhere((s) => s['id'] == update['stockId']);
+      if (index != -1) {
+        _stocks[index] = {
+          ..._stocks[index],
+          'price': update['price'],
+          'changePercent': update['changePercent'],
+        };
+        _applySearch();
+      }
+    });
+  }
+
+  void _applySearch() {
+    _filtered = _stocks
+        .where((s) =>
+            s['symbol'].toString().toUpperCase().contains(_search.toUpperCase()) ||
+            s['companyName'].toString().toLowerCase().contains(_search.toLowerCase()))
+        .toList();
   }
 
   Future<void> _loadStocks() async {
@@ -48,11 +109,7 @@ class _MarketScreenState extends State<MarketScreen> {
   void _onSearch(String query) {
     setState(() {
       _search = query;
-      _filtered = _stocks
-          .where((s) =>
-              s['symbol'].toString().toUpperCase().contains(query.toUpperCase()) ||
-              s['companyName'].toString().toLowerCase().contains(query.toLowerCase()))
-          .toList();
+      _applySearch();
     });
   }
 
@@ -73,23 +130,16 @@ class _MarketScreenState extends State<MarketScreen> {
           final total = (stock['price'] as num) * qty;
           return Padding(
             padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
+                left: 24, right: 24, top: 24,
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Handle
                 Center(
                   child: Container(
-                    width: 40,
-                    height: 4,
+                    width: 40, height: 4,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF333333)
-                          : const Color(0xFFE0E0E0),
+                      color: isDark ? const Color(0xFF333333) : const Color(0xFFE0E0E0),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -104,11 +154,9 @@ class _MarketScreenState extends State<MarketScreen> {
                         Text(stock['symbol'],
                             style: TextStyle(
                                 color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold)),
+                                fontSize: 20, fontWeight: FontWeight.bold)),
                         Text(stock['companyName'],
-                            style: const TextStyle(
-                                color: Color(0xFF888888), fontSize: 13)),
+                            style: const TextStyle(color: Color(0xFF888888), fontSize: 13)),
                       ],
                     ),
                     Column(
@@ -117,10 +165,9 @@ class _MarketScreenState extends State<MarketScreen> {
                         Text('₹${stock['price']}',
                             style: const TextStyle(
                                 color: Color(0xFF1DB954),
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold)),
+                                fontSize: 20, fontWeight: FontWeight.bold)),
                         Text(
-                          '${(stock['changePercent'] ?? 0) >= 0 ? '+' : ''}${stock['changePercent']?.toStringAsFixed(2) ?? '0.00'}%',
+                          '${(stock['changePercent'] ?? 0) >= 0 ? '+' : ''}${(stock['changePercent'] ?? 0).toStringAsFixed(2)}%',
                           style: TextStyle(
                             color: (stock['changePercent'] ?? 0) >= 0
                                 ? const Color(0xFF1DB954)
@@ -133,11 +180,6 @@ class _MarketScreenState extends State<MarketScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Divider(
-                    color: isDark
-                        ? const Color(0xFF2C2C2C)
-                        : const Color(0xFFE0E0E0)),
-                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -147,16 +189,12 @@ class _MarketScreenState extends State<MarketScreen> {
                           Text('Quantity',
                               style: TextStyle(
                                   color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500)),
+                                  fontSize: 13, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 8),
                           Row(
                             children: [
                               _qtyButton(Icons.remove, () {
-                                if (qty > 1) {
-                                  qtyCtrl.text = (qty - 1).toString();
-                                  setS(() {});
-                                }
+                                if (qty > 1) { qtyCtrl.text = (qty - 1).toString(); setS(() {}); }
                               }, isDark),
                               const SizedBox(width: 12),
                               SizedBox(
@@ -168,25 +206,20 @@ class _MarketScreenState extends State<MarketScreen> {
                                   onChanged: (_) => setS(() {}),
                                   style: TextStyle(
                                       color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                                      fontSize: 16,
                                       fontWeight: FontWeight.bold),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: isDark
-                                        ? const Color(0xFF222222)
-                                        : const Color(0xFFF5F5F5),
+                                    fillColor: isDark ? const Color(0xFF222222) : const Color(0xFFF5F5F5),
                                     border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
                                         borderSide: BorderSide.none),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 10),
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               _qtyButton(Icons.add, () {
-                                qtyCtrl.text = (qty + 1).toString();
-                                setS(() {});
+                                qtyCtrl.text = (qty + 1).toString(); setS(() {});
                               }, isDark),
                             ],
                           ),
@@ -197,25 +230,22 @@ class _MarketScreenState extends State<MarketScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('Total Amount',
+                        Text('Total',
                             style: TextStyle(
                                 color: isDark ? Colors.white : const Color(0xFF1A1A1A),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500)),
+                                fontSize: 13, fontWeight: FontWeight.w500)),
                         const SizedBox(height: 8),
                         Text('₹${total.toStringAsFixed(2)}',
                             style: const TextStyle(
                                 color: Color(0xFF1DB954),
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold)),
+                                fontSize: 20, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
-                  width: double.infinity,
-                  height: 52,
+                  width: double.infinity, height: 52,
                   child: ElevatedButton(
                     onPressed: () async {
                       Navigator.pop(ctx);
@@ -225,37 +255,28 @@ class _MarketScreenState extends State<MarketScreen> {
                           'Authorization': 'Bearer $token',
                           'Content-Type': 'application/json',
                         },
-                        body: jsonEncode({
-                          'stockId': stock['id'],
-                          'quantity': qty,
-                        }),
+                        body: jsonEncode({'stockId': stock['id'], 'quantity': qty}),
                       );
                       if (mounted) {
                         final ok = res.statusCode == 200;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(ok
-                                ? '✅ Bought $qty shares of ${stock['symbol']}'
-                                : '❌ ${jsonDecode(res.body)['message'] ?? 'Failed'}'),
-                            backgroundColor:
-                                ok ? const Color(0xFF1DB954) : const Color(0xFFE53935),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                        );
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(ok
+                              ? '✅ Bought $qty shares of ${stock['symbol']}'
+                              : '❌ ${jsonDecode(res.body)['message'] ?? 'Failed'}'),
+                          backgroundColor: ok ? const Color(0xFF1DB954) : const Color(0xFFE53935),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ));
                       }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1DB954),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text('Buy ${stock['symbol']}',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],
@@ -270,8 +291,7 @@ class _MarketScreenState extends State<MarketScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 36,
-        height: 36,
+        width: 36, height: 36,
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF222222) : const Color(0xFFF0F0F0),
           borderRadius: BorderRadius.circular(8),
@@ -300,11 +320,37 @@ class _MarketScreenState extends State<MarketScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Market',
-                      style: TextStyle(
-                          color: textColor,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Market',
+                          style: TextStyle(
+                              color: textColor, fontSize: 26, fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          Container(
+                            width: 7, height: 7,
+                            decoration: BoxDecoration(
+                              color: _wsConnected
+                                  ? const Color(0xFF1DB954)
+                                  : const Color(0xFFE53935),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _wsConnected ? 'Live prices' : 'Connecting...',
+                            style: TextStyle(
+                              color: _wsConnected
+                                  ? const Color(0xFF1DB954)
+                                  : const Color(0xFFE53935),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                   IconButton(
                     onPressed: _loadStocks,
                     icon: Icon(Icons.refresh_rounded, color: subColor),
@@ -313,7 +359,7 @@ class _MarketScreenState extends State<MarketScreen> {
               ),
             ),
 
-            // Search bar
+            // Search
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
               child: Container(
@@ -328,42 +374,15 @@ class _MarketScreenState extends State<MarketScreen> {
                   decoration: InputDecoration(
                     hintText: 'Search stocks...',
                     hintStyle: TextStyle(color: subColor, fontSize: 14),
-                    prefixIcon:
-                        Icon(Icons.search, color: subColor, size: 20),
+                    prefixIcon: Icon(Icons.search, color: subColor, size: 20),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                 ),
               ),
             ),
 
             const SizedBox(height: 8),
-
-            // Stats row
-            if (!_isLoading && _stocks.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Row(
-                  children: [
-                    Text('${_filtered.length} stocks',
-                        style: TextStyle(color: subColor, fontSize: 12)),
-                    const SizedBox(width: 16),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF1DB954),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text('Live',
-                        style: TextStyle(
-                            color: Color(0xFF1DB954), fontSize: 12)),
-                  ],
-                ),
-              ),
 
             // List
             Expanded(
@@ -374,16 +393,10 @@ class _MarketScreenState extends State<MarketScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.search_off,
-                                  color: subColor, size: 48),
+                              Icon(Icons.search_off, color: subColor, size: 48),
                               const SizedBox(height: 12),
-                              Text(
-                                _search.isNotEmpty
-                                    ? 'No results for "$_search"'
-                                    : 'No stocks available',
-                                style: TextStyle(
-                                    color: subColor, fontSize: 14),
-                              ),
+                              Text('No stocks found',
+                                  style: TextStyle(color: subColor, fontSize: 14)),
                             ],
                           ),
                         )
@@ -393,13 +406,10 @@ class _MarketScreenState extends State<MarketScreen> {
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                             itemCount: _filtered.length,
-                            separatorBuilder: (_, __) => Divider(
-                                color: borderColor,
-                                height: 1,
-                                indent: 60),
+                            separatorBuilder: (_, __) =>
+                                Divider(color: borderColor, height: 1, indent: 60),
                             itemBuilder: (_, i) =>
-                                _buildStockTile(_filtered[i], isDark,
-                                    textColor, subColor),
+                                _buildStockTile(_filtered[i], isDark, textColor, subColor),
                           ),
                         ),
             ),
@@ -413,20 +423,16 @@ class _MarketScreenState extends State<MarketScreen> {
       Color textColor, Color subColor) {
     final change = (stock['changePercent'] ?? 0.0) as num;
     final isPos = change >= 0;
-    final changeColor =
-        isPos ? const Color(0xFF1DB954) : const Color(0xFFE53935);
+    final changeColor = isPos ? const Color(0xFF1DB954) : const Color(0xFFE53935);
 
     return InkWell(
       onTap: () => _showBuySheet(stock),
-      borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            // Icon
             Container(
-              width: 42,
-              height: 42,
+              width: 42, height: 42,
               decoration: BoxDecoration(
                 color: changeColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
@@ -435,24 +441,18 @@ class _MarketScreenState extends State<MarketScreen> {
                 child: Text(
                   stock['symbol'].toString().substring(0, 1),
                   style: TextStyle(
-                      color: changeColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
+                      color: changeColor, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
             const SizedBox(width: 14),
-
-            // Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(stock['symbol'],
                       style: TextStyle(
-                          color: textColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600)),
+                          color: textColor, fontSize: 15, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   Text(stock['companyName'],
                       style: TextStyle(color: subColor, fontSize: 12),
@@ -460,32 +460,20 @@ class _MarketScreenState extends State<MarketScreen> {
                 ],
               ),
             ),
-
-            // Price
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text('₹${stock['price']}',
                     style: TextStyle(
-                        color: textColor,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+                        color: textColor, fontSize: 15, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    Icon(
-                        isPos
-                            ? Icons.arrow_drop_up
-                            : Icons.arrow_drop_down,
-                        color: changeColor,
-                        size: 16),
-                    Text(
-                      '${change.abs().toStringAsFixed(2)}%',
-                      style: TextStyle(
-                          color: changeColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500),
-                    ),
+                    Icon(isPos ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                        color: changeColor, size: 16),
+                    Text('${change.abs().toStringAsFixed(2)}%',
+                        style: TextStyle(
+                            color: changeColor, fontSize: 12, fontWeight: FontWeight.w500)),
                   ],
                 ),
               ],
@@ -501,59 +489,36 @@ class _MarketScreenState extends State<MarketScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       itemCount: 8,
       itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor:
-            isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
-        highlightColor:
-            isDark ? const Color(0xFF252525) : const Color(0xFFF5F5F5),
+        baseColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFEEEEEE),
+        highlightColor: isDark ? const Color(0xFF252525) : const Color(0xFFF5F5F5),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
             children: [
-              Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                      color: Colors.white,
+              Container(width: 42, height: 42,
+                  decoration: BoxDecoration(color: Colors.white,
                       borderRadius: BorderRadius.circular(10))),
               const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                        height: 14,
-                        width: 80,
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4))),
-                    const SizedBox(height: 6),
-                    Container(
-                        height: 11,
-                        width: 140,
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4))),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                      height: 14,
-                      width: 60,
-                      decoration: BoxDecoration(
-                          color: Colors.white,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Container(height: 14, width: 80,
+                      decoration: BoxDecoration(color: Colors.white,
                           borderRadius: BorderRadius.circular(4))),
                   const SizedBox(height: 6),
-                  Container(
-                      height: 11,
-                      width: 40,
-                      decoration: BoxDecoration(
-                          color: Colors.white,
+                  Container(height: 11, width: 140,
+                      decoration: BoxDecoration(color: Colors.white,
                           borderRadius: BorderRadius.circular(4))),
-                ],
+                ]),
               ),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Container(height: 14, width: 60,
+                    decoration: BoxDecoration(color: Colors.white,
+                        borderRadius: BorderRadius.circular(4))),
+                const SizedBox(height: 6),
+                Container(height: 11, width: 40,
+                    decoration: BoxDecoration(color: Colors.white,
+                        borderRadius: BorderRadius.circular(4))),
+              ]),
             ],
           ),
         ),
