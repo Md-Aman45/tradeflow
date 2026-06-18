@@ -8,10 +8,10 @@ class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
 
   @override
-  State<WalletScreen> createState() => _WalletScreenState();
+  WalletScreenState createState() => WalletScreenState();
 }
 
-class _WalletScreenState extends State<WalletScreen> {
+class WalletScreenState extends State<WalletScreen> {
   Map<String, dynamic>? _wallet;
   List<dynamic> _transactions = [];
   bool _isLoading = true;
@@ -21,6 +21,8 @@ class _WalletScreenState extends State<WalletScreen> {
     super.initState();
     _loadData();
   }
+
+  void refresh() => _loadData();
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
@@ -182,6 +184,29 @@ class _WalletScreenState extends State<WalletScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Wallet', style: TextStyle(color: textColor, fontSize: 26, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 10),
+
+                      // Disclaimer — this is a paper-trading simulator, not real money
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B).withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: Color(0xFFF59E0B), size: 14),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Virtual currency for practice only — not real money',
+                                style: TextStyle(color: subColor, fontSize: 11.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 20),
 
                       // Balance card

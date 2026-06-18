@@ -8,10 +8,10 @@ class PortfolioScreen extends StatefulWidget {
   const PortfolioScreen({super.key});
 
   @override
-  State<PortfolioScreen> createState() => _PortfolioScreenState();
+  PortfolioScreenState createState() => PortfolioScreenState();
 }
 
-class _PortfolioScreenState extends State<PortfolioScreen>
+class PortfolioScreenState extends State<PortfolioScreen>
     with SingleTickerProviderStateMixin {
   List<dynamic> _portfolio = [];
   List<dynamic> _transactions = [];
@@ -30,6 +30,8 @@ class _PortfolioScreenState extends State<PortfolioScreen>
     _tabController.dispose();
     super.dispose();
   }
+
+  void refresh() => _loadData();
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);

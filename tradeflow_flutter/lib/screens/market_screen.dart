@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
-import 'package:stomp_dart_client/stomp_dart_client.dart';
 import '../utils/constants.dart';
 import '../services/auth_service.dart';
 
@@ -17,63 +17,27 @@ class _MarketScreenState extends State<MarketScreen> {
   List<dynamic> _stocks = [];
   List<dynamic> _filtered = [];
   bool _isLoading = true;
-  bool _wsConnected = false;
+  bool _isLive = false;
   String _search = '';
-  StompClient? _stompClient;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadStocks();
-    _connectWebSocket();
+    _loadStocks(initial: true);
+    _startPolling();
   }
 
   @override
   void dispose() {
-    _stompClient?.deactivate();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  void _connectWebSocket() {
-    _stompClient = StompClient(
-      config: StompConfig(
-        url: Constants.wsUrl,
-        onConnect: (frame) {
-          setState(() => _wsConnected = true);
-
-          // Subscribe to all stock updates
-          _stompClient!.subscribe(
-            destination: '/topic/stocks',
-            callback: (frame) {
-              if (frame.body != null) {
-                final update = jsonDecode(frame.body!);
-                _updateStock(update);
-              }
-            },
-          );
-
-          // Request current prices
-          _stompClient!.send(destination: '/app/subscribe-stocks');
-        },
-        onDisconnect: (_) => setState(() => _wsConnected = false),
-        onWebSocketError: (_) => setState(() => _wsConnected = false),
-        reconnectDelay: const Duration(seconds: 5),
-      ),
-    );
-    _stompClient!.activate();
-  }
-
-  void _updateStock(dynamic update) {
-    setState(() {
-      final index = _stocks.indexWhere((s) => s['id'] == update['stockId']);
-      if (index != -1) {
-        _stocks[index] = {
-          ..._stocks[index],
-          'price': update['price'],
-          'changePercent': update['changePercent'],
-        };
-        _applySearch();
-      }
+  // Polls backend every 5 seconds for fresh prices — simple alternative to WebSocket
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _loadStocks(initial: false);
     });
   }
 
@@ -85,24 +49,27 @@ class _MarketScreenState extends State<MarketScreen> {
         .toList();
   }
 
-  Future<void> _loadStocks() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadStocks({bool initial = false}) async {
+    if (initial) setState(() => _isLoading = true);
     try {
       final token = await AuthService().getToken();
       final res = await http.get(Uri.parse(Constants.stocks),
           headers: {'Authorization': 'Bearer $token'});
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List;
-        setState(() {
-          _stocks = data;
-          _filtered = data;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _stocks = data;
+            _isLoading = false;
+            _isLive = true;
+            _applySearch();
+          });
+        }
       } else {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() { _isLoading = false; _isLive = false; });
       }
     } catch (_) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() { _isLoading = false; _isLive = false; });
     }
   }
 
@@ -331,7 +298,7 @@ class _MarketScreenState extends State<MarketScreen> {
                           Container(
                             width: 7, height: 7,
                             decoration: BoxDecoration(
-                              color: _wsConnected
+                              color: _isLive
                                   ? const Color(0xFF1DB954)
                                   : const Color(0xFFE53935),
                               shape: BoxShape.circle,
@@ -339,9 +306,9 @@ class _MarketScreenState extends State<MarketScreen> {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            _wsConnected ? 'Live prices' : 'Connecting...',
+                            _isLive ? 'Live prices' : 'Connecting...',
                             style: TextStyle(
-                              color: _wsConnected
+                              color: _isLive
                                   ? const Color(0xFF1DB954)
                                   : const Color(0xFFE53935),
                               fontSize: 11,
@@ -352,7 +319,7 @@ class _MarketScreenState extends State<MarketScreen> {
                     ],
                   ),
                   IconButton(
-                    onPressed: _loadStocks,
+                    onPressed: () => _loadStocks(initial: true),
                     icon: Icon(Icons.refresh_rounded, color: subColor),
                   ),
                 ],
@@ -401,7 +368,7 @@ class _MarketScreenState extends State<MarketScreen> {
                           ),
                         )
                       : RefreshIndicator(
-                          onRefresh: _loadStocks,
+                          onRefresh: () => _loadStocks(initial: true),
                           color: const Color(0xFF1DB954),
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),

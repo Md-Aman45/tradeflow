@@ -17,6 +17,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   bool _isAdmin = false;
 
+  // Keys let us call public refresh methods on each screen from here
+  final GlobalKey<PortfolioScreenState> _portfolioKey = GlobalKey();
+  final GlobalKey<WalletScreenState> _walletKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -30,11 +34,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Widget> get _screens => [
         const MarketScreen(),
-        const PortfolioScreen(),
-        const WalletScreen(),
+        PortfolioScreen(key: _portfolioKey),
+        WalletScreen(key: _walletKey),
         if (_isAdmin) const AdminScreen(),
         const ProfileScreen(),
       ];
+
+  void _onTabTapped(int index) {
+    setState(() => _currentIndex = index);
+
+    // Refresh data every time the person switches into these tabs,
+    // so a Buy/Sell on Market is reflected immediately without
+    // needing a manual pull-to-refresh.
+    if (index == 1) {
+      _portfolioKey.currentState?.refresh();
+    } else if (index == 2) {
+      _walletKey.currentState?.refresh();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (i) => setState(() => _currentIndex = i),
+          onTap: _onTabTapped,
           items: [
             const BottomNavigationBarItem(
               icon: Icon(Icons.bar_chart_outlined),

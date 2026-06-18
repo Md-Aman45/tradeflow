@@ -6,7 +6,6 @@ import com.tradeflow.tradeflow.entity.Stock;
 import com.tradeflow.tradeflow.entity.User;
 import com.tradeflow.tradeflow.exception.BadRequestException;
 import com.tradeflow.tradeflow.exception.ResourceNotFoundException;
-import com.tradeflow.tradeflow.repository.StockRepository;
 import com.tradeflow.tradeflow.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,11 +18,10 @@ import java.util.stream.Collectors;
 public class AdminService {
 
     private final UserRepository userRepository;
-    private final StockRepository stockRepository;
+    private final StockService stockService; // delegate stock work here so Redis cache evicts correctly
 
     // ── USER MANAGEMENT ──────────────────────────────────────────
 
-    // Get all users
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll()
                 .stream()
@@ -31,7 +29,6 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    // Promote user to ADMIN
     public String makeAdmin(Long userId) {
         User user = getUserById(userId);
         if (user.getRole().equals("ADMIN")) {
@@ -42,7 +39,6 @@ public class AdminService {
         return user.getName() + " is now an ADMIN";
     }
 
-    // Demote admin back to USER
     public String makeUser(Long userId) {
         User user = getUserById(userId);
         if (user.getRole().equals("USER")) {
@@ -53,7 +49,6 @@ public class AdminService {
         return user.getName() + " is now a USER";
     }
 
-    // Delete user
     public String deleteUser(Long userId) {
         User user = getUserById(userId);
         userRepository.delete(user);
@@ -61,38 +56,20 @@ public class AdminService {
     }
 
     // ── STOCK MANAGEMENT ─────────────────────────────────────────
+    // All three now delegate to StockService, which has @CacheEvict
+    // on create/update/delete — this is what was missing before,
+    // causing newly added stocks to not appear due to stale Redis cache.
 
-    // Admin create stock
     public String createStock(CreateStockRequest request) {
-        Stock stock = Stock.builder()
-                .symbol(request.getSymbol())
-                .companyName(request.getCompanyName())
-                .price(request.getPrice())
-                .changePercent(request.getChangePercent())
-                .marketStatus(request.getMarketStatus())
-                .build();
-        stockRepository.save(stock);
-        return "Stock " + request.getSymbol() + " created successfully";
+        return stockService.createStock(request);
     }
 
-    // Admin update stock
     public Stock updateStock(Long stockId, CreateStockRequest request) {
-        Stock stock = stockRepository.findById(stockId)
-                .orElseThrow(() -> new ResourceNotFoundException("Stock", stockId));
-        stock.setSymbol(request.getSymbol());
-        stock.setCompanyName(request.getCompanyName());
-        stock.setPrice(request.getPrice());
-        stock.setChangePercent(request.getChangePercent());
-        stock.setMarketStatus(request.getMarketStatus());
-        return stockRepository.save(stock);
+        return stockService.updateStock(stockId, request);
     }
 
-    // Admin delete stock
     public String deleteStock(Long stockId) {
-        Stock stock = stockRepository.findById(stockId)
-                .orElseThrow(() -> new ResourceNotFoundException("Stock", stockId));
-        stockRepository.delete(stock);
-        return "Stock " + stock.getSymbol() + " deleted successfully";
+        return stockService.deleteStock(stockId);
     }
 
     // ── PRIVATE HELPERS ──────────────────────────────────────────
