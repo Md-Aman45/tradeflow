@@ -259,8 +259,9 @@ flutter build apk --release
 ## 👨‍💻 Author
 
 **MD Aman**
-- GitHub: [@md-aman](https://github.com/Md-Aman45)
-- LinkedIn: [md-aman](https://www.linkedin.com/in/md-aman-7941a0355/)
+- BCA Student | Software Developer
+- [GitHub](https://github.com/Md-Aman45)
+- [Linkdln](https://www.linkedin.com/in/md-aman-7941a0355/)
 
 ---
 
