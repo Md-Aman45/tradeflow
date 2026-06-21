@@ -228,9 +228,8 @@ flutter build apk --release
 
 | Email | Password | Role |
 |-------|----------|------|
-| irshad@gmail.com | 123456 | ADMIN |
-| aman@gmail.com | 123456 | USER |
-| rahul@gmail.com | 123456 | USER |
+| admin@gmail.com | 123456 | ADMIN |
+| ayush@gmail.com | 123456 | USER |
 
 > To set an account as ADMIN, run this SQL in PostgreSQL:
 > ```sql
