@@ -10,6 +10,7 @@ target/
 *.class
 .env
 application-local.yaml
+application.yaml
 
 
 
